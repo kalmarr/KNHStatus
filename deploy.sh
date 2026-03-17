@@ -26,12 +26,19 @@ remote_exec() {
     ssh "$REMOTE_HOST" "cd $REMOTE_PATH && $1"
 }
 
+# SSH parancs futtatás www-data userként (sudo)
+remote_sudo_exec() {
+    ssh "$REMOTE_HOST" "cd $REMOTE_PATH && sudo -u www-data $1"
+}
+
 deploy() {
     log_info "=== KNHstatus deploy indítása ==="
 
-    # 1. Rsync — kód szinkronizálás
+    # 1. Rsync — kód szinkronizálás (sudo rsync a szerveren, mert www-data a tulajdonos)
     log_info "Kód szinkronizálás (rsync)..."
-    rsync -avz --delete \
+    rsync -avz --no-perms --no-owner --no-group \
+        --rsync-path="sudo rsync" \
+        --delete \
         --exclude='.env' \
         --exclude='.git' \
         --exclude='node_modules' \
@@ -40,6 +47,7 @@ deploy() {
         --exclude='storage/framework/cache/data/*' \
         --exclude='storage/framework/sessions/*' \
         --exclude='storage/framework/views/*' \
+        --exclude='bootstrap/cache/*' \
         --exclude='passwords.env' \
         --exclude='CLAUDE.md' \
         --exclude='Dokumentumok' \
@@ -47,30 +55,30 @@ deploy() {
         --exclude='.claude' \
         "$LOCAL_PATH/" "$REMOTE_HOST:$REMOTE_PATH/"
 
-    # 2. Composer install
-    log_info "Composer install..."
-    remote_exec "composer install --no-dev --optimize-autoloader --no-interaction 2>&1"
-
-    # 3. Migráció
-    log_info "Migrációk futtatása..."
-    remote_exec "php artisan migrate --force 2>&1"
-
-    # 4. Cache clear + rebuild
-    log_info "Cache törlés és újraépítés..."
-    remote_exec "php artisan config:cache 2>&1"
-    remote_exec "php artisan route:cache 2>&1"
-    remote_exec "php artisan view:clear 2>&1"
-
-    # 5. Opcache reset
-    log_info "Opcache reset..."
-    remote_exec "php artisan tinker --execute=\"if (function_exists('opcache_reset')) { opcache_reset(); echo 'opcache reset OK'; } else { echo 'opcache not available'; }\" 2>&1" || true
-
-    # 6. Storage link
-    remote_exec "php artisan storage:link 2>&1" || true
-
-    # 7. Jogosultságok
+    # 2. Jogosultságok helyreállítása
     log_info "Jogosultságok beállítása..."
-    ssh "$REMOTE_HOST" "sudo chown -R www-data:www-data $REMOTE_PATH/storage $REMOTE_PATH/bootstrap/cache 2>/dev/null" || true
+    ssh "$REMOTE_HOST" "sudo chown -R www-data:www-data $REMOTE_PATH"
+
+    # 3. Composer install
+    log_info "Composer install..."
+    remote_sudo_exec "composer install --no-dev --optimize-autoloader --no-interaction 2>&1"
+
+    # 4. Migráció
+    log_info "Migrációk futtatása..."
+    remote_sudo_exec "php artisan migrate --force 2>&1"
+
+    # 5. Cache clear + rebuild
+    log_info "Cache törlés és újraépítés..."
+    remote_sudo_exec "php artisan config:cache 2>&1"
+    remote_sudo_exec "php artisan route:cache 2>&1"
+    remote_sudo_exec "php artisan view:clear 2>&1"
+
+    # 6. Opcache reset
+    log_info "Opcache reset..."
+    remote_sudo_exec "php artisan tinker --execute=\"if (function_exists('opcache_reset')) { opcache_reset(); echo 'opcache reset OK'; } else { echo 'opcache not available'; }\" 2>&1" || true
+
+    # 7. Storage link
+    remote_sudo_exec "php artisan storage:link 2>&1" || true
 
     # 8. Health check
     log_info "=== Health check ==="
@@ -104,7 +112,7 @@ health_check() {
 
     # Route lista ellenőrzés
     log_info "Route lista ellenőrzés..."
-    if remote_exec "php artisan route:list --compact 2>&1" > /dev/null 2>&1; then
+    if remote_sudo_exec "php artisan route:list 2>&1" > /dev/null 2>&1; then
         log_info "  Route lista: OK"
     else
         log_error "  Route lista: HIBA"

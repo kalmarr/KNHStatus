@@ -18,7 +18,7 @@ return new class extends Migration
             $table->enum('type', ['http', 'ssl', 'api', 'ping', 'port', 'heartbeat']);
             $table->unsignedInteger('interval')->default(60);
             $table->json('monitor_config')->nullable();
-            $table->json('channels')->default('["email"]');
+            $table->json('channels')->nullable();
             $table->foreignId('parent_id')->nullable()->constrained('projects')->nullOnDelete();
             $table->boolean('active')->default(true);
             $table->timestamps();

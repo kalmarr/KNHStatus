@@ -36,6 +36,10 @@ class Project extends Model
         'active',
     ];
 
+    protected $attributes = [
+        'channels' => '["email"]',
+    ];
+
     protected $casts = [
         'monitor_config' => 'array',
         'channels'       => 'array',
