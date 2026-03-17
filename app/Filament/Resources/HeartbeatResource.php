@@ -67,7 +67,7 @@ class HeartbeatResource extends Resource
                             ->required()
                             ->minValue(1)
                             ->suffix('perc')
-                            ->helperText('Ha ennyi percen belül nem érkezik ping, a rendszer incidenst nyit.'),
+                            ->helperText('Dead man\'s switch: a külső cron job-nak ennyi percenként kell pingelnie a POST /heartbeat/{token} végpontot. Ha elmarad, incidens nyílik.'),
                     ])
                     ->columns(2),
             ]);

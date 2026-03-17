@@ -57,7 +57,8 @@ class IncidentResource extends Resource
                                 'down'       => 'Leállás',
                                 'anomaly'    => 'Anomália',
                                 'ssl_expiry' => 'SSL lejárat',
-                            ]),
+                            ])
+                            ->helperText('Leállás: a szolgáltatás nem elérhető | Anomália: szokatlan válaszidő | SSL lejárat: tanúsítvány hamarosan lejár'),
 
                         // Súlyosság szintje
                         Forms\Components\Select::make('severity')
@@ -68,7 +69,8 @@ class IncidentResource extends Resource
                                 'critical' => 'Kritikus',
                                 'warning'  => 'Figyelmeztetés',
                                 'info'     => 'Információ',
-                            ]),
+                            ])
+                            ->helperText('Kritikus: azonnali beavatkozás kell | Figyelmeztetés: figyelmet igényel | Info: tájékoztató jellegű'),
 
                         Forms\Components\TextInput::make('title')
                             ->label('Cím')

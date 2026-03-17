@@ -39,9 +39,8 @@ class AdminPanelProvider extends PanelProvider
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([
                 // Státusz összesítő widget a dashboardon – elsőként jelenik meg
+                // A többi widget auto-discovery-vel töltődik be a Widgets mappából
                 StatusOverviewWidget::class,
-                Widgets\AccountWidget::class,
-                Widgets\FilamentInfoWidget::class,
             ])
             ->middleware([
                 EncryptCookies::class,

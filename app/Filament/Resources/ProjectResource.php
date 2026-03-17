@@ -66,7 +66,8 @@ class ProjectResource extends Resource
                                 'ping'      => 'Ping',
                                 'port'      => 'Port',
                                 'heartbeat' => 'Heartbeat',
-                            ]),
+                            ])
+                            ->helperText('HTTP: weboldal elérhetőség | SSL: tanúsítvány lejárat | API: JSON endpoint | Ping: ICMP | Port: TCP | Heartbeat: cron figyelés'),
 
                         Forms\Components\TextInput::make('interval')
                             ->label('Lekérdezési intervallum')
@@ -74,7 +75,8 @@ class ProjectResource extends Resource
                             ->default(60)
                             ->minValue(30)
                             ->maxValue(3600)
-                            ->suffix('másodperc'),
+                            ->suffix('másodperc')
+                            ->helperText('Milyen gyakran ellenőrizze a rendszer. Ajánlott: HTTP 60s, SSL 3600s, Ping 30s.'),
 
                         Forms\Components\Select::make('parent_id')
                             ->label('Szülő projekt')
@@ -82,7 +84,8 @@ class ProjectResource extends Resource
                             ->searchable()
                             ->preload()
                             ->nullable()
-                            ->placeholder('Nincs szülő projekt'),
+                            ->placeholder('Nincs szülő projekt')
+                            ->helperText('Szülő szerver kiválasztása. Szerver leállásakor a gyermek projektek nem kapnak külön riasztást.'),
 
                         Forms\Components\Toggle::make('active')
                             ->label('Aktív monitorozás')
@@ -102,7 +105,8 @@ class ProjectResource extends Resource
                                 'viber'    => 'Viber',
                                 'webhook'  => 'Webhook',
                             ])
-                            ->columns(2),
+                            ->columns(2)
+                            ->helperText('Értesítési csatornák leállásnál. Email mindig működik, Telegram/Viber éjjel 02:00-06:00 között hallgat.'),
                     ]),
 
                 // --- Speciális monitor-konfiguráció szekció ---
@@ -113,7 +117,8 @@ class ProjectResource extends Resource
                             ->keyLabel('Beállítás neve')
                             ->valueLabel('Érték')
                             ->addActionLabel('Beállítás hozzáadása')
-                            ->nullable(),
+                            ->nullable()
+                            ->helperText('Típusfüggő beállítások. HTTP: keyword, timeout | API: bearer_token | Port: port_number | SSL: warning_days'),
                     ])
                     ->collapsed()
                     ->collapsible(),
