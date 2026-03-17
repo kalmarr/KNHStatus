@@ -15,7 +15,7 @@ class KnhProjectsSeeder extends Seeder
         // Contabo DE szerver — parent projekt a smart grouping-hoz
         $contaboServer = Project::create([
             'name' => 'Contabo DE #1',
-            'url' => '62.171.187.xx', // szerver IP
+            'url' => '158.220.111.143', // Contabo DE szerver IP (srv.knh.hu)
             'type' => 'ping',
             'interval' => 60,
             'channels' => ['email', 'telegram'],
@@ -74,7 +74,7 @@ class KnhProjectsSeeder extends Seeder
         // Contabo szerver SSH port — Port monitor
         Project::create([
             'name' => 'Contabo DE #1 SSH',
-            'url' => '62.171.187.xx',
+            'url' => '158.220.111.143',
             'type' => 'port',
             'interval' => 300, // 5 percenként
             'monitor_config' => ['port' => 22],
