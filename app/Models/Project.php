@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property int         $id
  * @property string      $name
  * @property string      $url
- * @property string      $type
+ * @property array       $types             Monitor type identifiers (e.g. ['http', 'ssl']).
  * @property int         $interval          Polling interval in seconds.
  * @property array|null  $monitor_config    Extra monitor-type-specific config (e.g. keyword, port).
  * @property array|null  $channels          Notification channel identifiers (e.g. ['email', 'slack']).
@@ -28,7 +28,7 @@ class Project extends Model
     protected $fillable = [
         'name',
         'url',
-        'type',
+        'types',
         'interval',
         'monitor_config',
         'channels',
@@ -41,6 +41,7 @@ class Project extends Model
     ];
 
     protected $casts = [
+        'types'          => 'array',
         'monitor_config' => 'array',
         'channels'       => 'array',
         'active'         => 'boolean',

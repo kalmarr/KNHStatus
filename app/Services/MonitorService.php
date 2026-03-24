@@ -139,47 +139,61 @@ class MonitorService
     }
 
     /**
-     * Instantiate the correct monitor for the project type and execute the check.
+     * Instantiate and run monitors for all types assigned to the project.
+     *
+     * Minden típushoz külön check rekord keletkezik a monitor_type mezővel.
+     * Ha bármelyik monitor DOWN-t ad, a projekt DOWN-nak minősül.
      *
      * @param  Project  $project
-     * @return CheckResult
+     * @return CheckResult  Az utolsó (vagy legrosszabb) eredmény.
      */
     private function runMonitor(Project $project): CheckResult
     {
-        $monitor = match ($project->type) {
-            'http'      => new HttpMonitor($project),
-            'ssl'       => new SslMonitor($project),
-            'api'       => new ApiMonitor($project),
-            'ping'      => new PingMonitor($project),
-            'port'      => new PortMonitor($project),
-            // A heartbeat típust a CheckHeartbeats command kezeli, nem a monitor loop
-            'heartbeat' => null,
-            default     => throw new \RuntimeException("Unknown project type: {$project->type}"),
-        };
+        $types = $project->types ?? [];
+        $worstResult = null;
 
-        // Heartbeat típusú projektet a monitor loop nem ellenőriz
-        if ($monitor === null) {
-            return CheckResult::up(responseMs: 0, metadata: ['skipped' => 'heartbeat']);
+        foreach ($types as $type) {
+            $monitor = match ($type) {
+                'http'      => new HttpMonitor($project),
+                'ssl'       => new SslMonitor($project),
+                'api'       => new ApiMonitor($project),
+                'ping'      => new PingMonitor($project),
+                'port'      => new PortMonitor($project),
+                // A heartbeat típust a CheckHeartbeats command kezeli, nem a monitor loop
+                'heartbeat' => null,
+                default     => throw new \RuntimeException("Unknown monitor type: {$type}"),
+            };
+
+            // Heartbeat típust a monitor loop nem ellenőriz
+            if ($monitor === null) {
+                $result = CheckResult::up(responseMs: 0, metadata: ['skipped' => 'heartbeat']);
+                $this->storeCheck($project, $result, incident: null, monitorType: $type);
+                continue;
+            }
+
+            $result = $monitor->run();
+
+            // Karbantartási ablak: mentjük az eredményt, de nem nyitunk/zárunk incidenst
+            if ($project->isInMaintenance()) {
+                Log::info('MonitorService: project in maintenance window, alerts suppressed', [
+                    'project_id'   => $project->id,
+                    'monitor_type' => $type,
+                ]);
+
+                $this->storeCheck($project, $result, incident: null, monitorType: $type);
+            } else {
+                DB::transaction(function () use ($project, $result, $type): void {
+                    $this->processResult($project, $result, $type);
+                });
+            }
+
+            // A legrosszabb eredményt tartjuk meg a parent-child logikához
+            if ($worstResult === null || (! $result->isUp && $worstResult->isUp)) {
+                $worstResult = $result;
+            }
         }
 
-        $result = $monitor->run();
-
-        // Karbantartási ablak: mentjük az eredményt, de nem nyitunk/zárunk incidenst
-        if ($project->isInMaintenance()) {
-            Log::info('MonitorService: project in maintenance window, alerts suppressed', [
-                'project_id' => $project->id,
-            ]);
-
-            $this->storeCheck($project, $result, incident: null);
-
-            return $result;
-        }
-
-        DB::transaction(function () use ($project, $result): void {
-            $this->processResult($project, $result);
-        });
-
-        return $result;
+        return $worstResult ?? CheckResult::up(responseMs: 0, metadata: ['no_types' => true]);
     }
 
     /**
@@ -187,15 +201,16 @@ class MonitorService
      *
      * @param  Project      $project
      * @param  CheckResult  $result
+     * @param  string       $monitorType  Melyik monitor típus hozta létre az eredményt.
      */
-    private function processResult(Project $project, CheckResult $result): void
+    private function processResult(Project $project, CheckResult $result, string $monitorType = 'http'): void
     {
         $openIncident = $project->incidents->first();
 
         if ($result->isUp) {
-            $this->handleSuccessfulCheck($project, $result, $openIncident);
+            $this->handleSuccessfulCheck($project, $result, $openIncident, $monitorType);
         } else {
-            $this->handleFailedCheck($project, $result, $openIncident);
+            $this->handleFailedCheck($project, $result, $openIncident, $monitorType);
         }
     }
 
@@ -213,11 +228,12 @@ class MonitorService
         Project   $project,
         CheckResult $result,
         ?Incident $openIncident,
+        string    $monitorType = 'http',
     ): void {
         // Korábban nyitott incidenst lezárunk – a projekt visszaállt
         if ($openIncident && $openIncident->type !== 'anomaly') {
             $openIncident->resolve();
-            $this->storeCheck($project, $result, incident: $openIncident);
+            $this->storeCheck($project, $result, incident: $openIncident, monitorType: $monitorType);
             $this->dispatcher->sendRecoveryAlert($project, $openIncident);
 
             return;
@@ -227,7 +243,7 @@ class MonitorService
         if ($this->anomalyDetector->isAnomaly($project, $result)) {
             // Már van nyitott anomália incidens? Ne nyissunk másikat
             if ($openIncident && $openIncident->type === 'anomaly') {
-                $this->storeCheck($project, $result, incident: $openIncident);
+                $this->storeCheck($project, $result, incident: $openIncident, monitorType: $monitorType);
 
                 return;
             }
@@ -238,7 +254,7 @@ class MonitorService
                 'project_id'  => $project->id,
                 'type'        => 'anomaly',
                 'severity'    => 'warning',
-                'title'       => "{$project->name} – Szokatlanul magas válaszidő",
+                'title'       => "{$project->name} [{$monitorType}] – Szokatlanul magas válaszidő",
                 'description' => sprintf(
                     'Válaszidő: %d ms (24h átlag: %s ms)',
                     $result->responseMs,
@@ -247,19 +263,18 @@ class MonitorService
                 'started_at'  => now(),
             ]);
 
-            $this->storeCheck($project, $result, incident: $incident);
+            $this->storeCheck($project, $result, incident: $incident, monitorType: $monitorType);
             $this->dispatcher->sendAnomalyAlert($project, $incident);
 
             return;
         }
 
         // Nincs anomália, nincs nyitott incidens – normál sikeres ellenőrzés
-        // Ha volt nyitott anomália incidens és a válaszidő visszatért normálisra, zárjuk le
         if ($openIncident && $openIncident->type === 'anomaly') {
             $openIncident->resolve();
         }
 
-        $this->storeCheck($project, $result, incident: null);
+        $this->storeCheck($project, $result, incident: null, monitorType: $monitorType);
     }
 
     /**
@@ -276,23 +291,24 @@ class MonitorService
         Project   $project,
         CheckResult $result,
         ?Incident $openIncident,
+        string    $monitorType = 'http',
     ): void {
         // Ha már van nyitott downtime incidens, csak hozzáadjuk a check-et
         if ($openIncident && $openIncident->type === 'down') {
-            $this->storeCheck($project, $result, incident: $openIncident);
+            $this->storeCheck($project, $result, incident: $openIncident, monitorType: $monitorType);
 
             return;
         }
 
-        // Egymást követő hibák számlálása a threshold-hoz
+        // Egymást követő hibák számlálása a threshold-hoz (típusonként)
         $recentFailures = Check::where('project_id', $project->id)
+            ->where('monitor_type', $monitorType)
             ->where('is_up', false)
             ->where('checked_at', '>=', now()->subMinutes(10))
             ->count();
 
         if ($recentFailures < self::FAILURE_THRESHOLD) {
-            // Még nem értük el a küszöböt – check mentés, incidens nélkül
-            $this->storeCheck($project, $result, incident: null);
+            $this->storeCheck($project, $result, incident: null, monitorType: $monitorType);
 
             return;
         }
@@ -302,12 +318,12 @@ class MonitorService
             'project_id'  => $project->id,
             'type'        => 'down',
             'severity'    => 'critical',
-            'title'       => "{$project->name} – Nem elérhető",
+            'title'       => "{$project->name} [{$monitorType}] – Nem elérhető",
             'description' => $result->errorMessage,
             'started_at'  => now(),
         ]);
 
-        $this->storeCheck($project, $result, incident: $incident);
+        $this->storeCheck($project, $result, incident: $incident, monitorType: $monitorType);
         $this->dispatcher->sendDownAlert($project, $incident);
     }
 
@@ -318,10 +334,15 @@ class MonitorService
      * @param  CheckResult   $result
      * @param  Incident|null $incident  Associate with an open incident if provided.
      */
-    private function storeCheck(Project $project, CheckResult $result, ?Incident $incident): void
-    {
+    private function storeCheck(
+        Project $project,
+        CheckResult $result,
+        ?Incident $incident,
+        string $monitorType = 'http',
+    ): void {
         Check::create([
             'project_id'    => $project->id,
+            'monitor_type'  => $monitorType,
             'incident_id'   => $incident?->id,
             'is_up'         => $result->isUp,
             'response_ms'   => $result->responseMs,

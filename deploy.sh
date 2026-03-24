@@ -73,6 +73,10 @@ deploy() {
     remote_sudo_exec "php artisan route:cache 2>&1"
     remote_sudo_exec "php artisan view:clear 2>&1"
 
+    # 5b. Filament + Livewire assets publish
+    log_info "Filament + Livewire assets publish..."
+    remote_sudo_exec "php artisan filament:assets 2>&1"
+
     # 6. Opcache reset
     log_info "Opcache reset..."
     remote_sudo_exec "php artisan tinker --execute=\"if (function_exists('opcache_reset')) { opcache_reset(); echo 'opcache reset OK'; } else { echo 'opcache not available'; }\" 2>&1" || true

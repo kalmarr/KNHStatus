@@ -18,8 +18,10 @@ use Illuminate\Support\Facades\Log;
  *
  * monitor_config keys used:
  *   bearer_token      (string|null)          – Authorization: Bearer <token>
+ *   headers           (array<string,string>) – custom HTTP headers (e.g. X-API-Key, X-API-Secret)
  *   expected_keys     (string[])             – list of dot-notation keys that must be present
  *   expected_values   (array<string,mixed>)  – key => expected value assertions
+ *   max_response_ms   (int|null)             – hard response time threshold; exceeding = DOWN
  *   method            (string)               – HTTP method, default 'GET'
  *   timeout           (int)                  – request timeout in seconds (default: 10)
  *   max_redirects     (int)                  – redirect limit (default: 5)
@@ -53,6 +55,12 @@ class ApiMonitor extends BaseMonitor
         // Bearer token hozzáadása ha konfigurálva van
         if ($bearerToken !== null && $bearerToken !== '') {
             $headers['Authorization'] = 'Bearer ' . $bearerToken;
+        }
+
+        // Egyedi HTTP header-ök hozzáadása (pl. X-API-Key, X-API-Secret)
+        $customHeaders = (array) $this->config('headers', []);
+        foreach ($customHeaders as $headerName => $headerValue) {
+            $headers[$headerName] = $headerValue;
         }
 
         $client = new Client([
@@ -133,6 +141,20 @@ class ApiMonitor extends BaseMonitor
                         ],
                     );
                 }
+            }
+
+            // Hard response time küszöb ellenőrzés — ha meghaladja, DOWN
+            $maxResponseMs = $this->config('max_response_ms');
+            if ($maxResponseMs !== null && $responseMs !== null && $responseMs > (int) $maxResponseMs) {
+                return CheckResult::down(
+                    errorMessage: "Response time {$responseMs}ms exceeds threshold {$maxResponseMs}ms",
+                    statusCode:   $statusCode,
+                    metadata:     [
+                        'response_ms'  => $responseMs,
+                        'threshold_ms' => (int) $maxResponseMs,
+                        'json_valid'   => true,
+                    ],
+                );
             }
 
             return CheckResult::up(

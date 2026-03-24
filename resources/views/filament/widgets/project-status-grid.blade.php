@@ -31,21 +31,23 @@
                             </span>
                         </div>
 
-                        {{-- Típus badge --}}
-                        <div class="mb-2">
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
-                                @switch($project['type'])
-                                    @case('http') bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 @break
-                                    @case('ssl') bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300 @break
-                                    @case('api') bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300 @break
-                                    @case('ping') bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 @break
-                                    @case('port') bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 @break
-                                    @case('heartbeat') bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 @break
-                                    @default bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300
-                                @endswitch
-                            ">
-                                {{ strtoupper($project['type']) }}
-                            </span>
+                        {{-- Típus badge-ek (több típus is lehet) --}}
+                        <div class="mb-2 flex flex-wrap gap-1">
+                            @foreach($project['types'] ?? [] as $type)
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                    @switch($type)
+                                        @case('http') bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 @break
+                                        @case('ssl') bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300 @break
+                                        @case('api') bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300 @break
+                                        @case('ping') bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 @break
+                                        @case('port') bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 @break
+                                        @case('heartbeat') bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 @break
+                                        @default bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300
+                                    @endswitch
+                                ">
+                                    {{ strtoupper($type) }}
+                                </span>
+                            @endforeach
                         </div>
 
                         {{-- Metrikák --}}

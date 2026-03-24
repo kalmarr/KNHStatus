@@ -39,7 +39,7 @@ class ProjectStatusGridWidget extends Widget
             ->map(fn (Project $p) => [
                 'id'          => $p->id,
                 'name'        => $p->name,
-                'type'        => $p->type,
+                'types'       => $p->types,
                 'url'         => $p->url,
                 'is_up'       => $p->checks->first()?->is_up,
                 'maintenance' => $p->isInMaintenance(),

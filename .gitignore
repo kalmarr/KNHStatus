@@ -29,3 +29,6 @@ CLAUDE.md
 Dokumentumok/
 docs/
 .claude/
+*.~lock.*
+start.sh
+backups/

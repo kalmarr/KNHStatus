@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * @property int          $id
  * @property int          $project_id
+ * @property string|null  $monitor_type   Which monitor type produced this check (http, ssl, etc.).
  * @property int|null     $incident_id    Set when this check contributed to an open incident.
  * @property bool         $is_up          True if the target responded successfully.
  * @property int|null     $response_ms    Round-trip response time in milliseconds.
@@ -29,6 +30,7 @@ class Check extends Model
 
     protected $fillable = [
         'project_id',
+        'monitor_type',
         'incident_id',
         'is_up',
         'response_ms',
